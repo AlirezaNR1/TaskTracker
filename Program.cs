@@ -1,4 +1,12 @@
-﻿// No arguments → show usage and fail
+﻿using System;
+using System.IO;
+using System.Text.Json;
+using System.Collections.Generic;
+using System.Linq;
+
+string filePath = Path.Combine(Environment.CurrentDirectory, "tasks.json");
+
+// No arguments → show usage and fail
 if (args.Length == 0)
 {
     PrintUsage();
@@ -11,7 +19,7 @@ string command = args[0].ToLowerInvariant();
 switch (command)
 {
     case "add":
-        HandleArgs(args);
+        HandleAdd(args);
         break;
     case "update":
     case "delete":
@@ -40,7 +48,7 @@ void PrintUsage()
     Console.WriteLine("  tasktracker list [all|todo|in-progress|done]");
 }
 
-void HandleArgs(string[] args)
+void HandleAdd(string[] args)
 {
     //args[1] = Title
     //args[2] = Description
@@ -60,14 +68,23 @@ void HandleArgs(string[] args)
         description = args[2];
     }
 
+    var tasks = LoadTasks();
+
+    int nextId;
+    if (tasks.Count == 0)
+    {
+        nextId = 1;
+    }
+    else
+    {
+        nextId = tasks.Max(t => t.Id) + 1;
+    }
+
     var now = DateTime.UtcNow;
 
-    // For now, Id is just a placeholder.
-    // Later we’ll generate proper Ids when we load tasks from JSON.
-    //TODO: change Id indexing
     var task = new TaskItem
     {
-        Id = 1,
+        Id = nextId,
         Title = title,
         Description = description,
         Status = "todo",
@@ -75,15 +92,51 @@ void HandleArgs(string[] args)
         UpdatedAt = now
     };
 
-    Console.WriteLine("Adding task:");
-    Console.WriteLine($"  Id: {task.Id}");
-    Console.WriteLine($"  Title: {task.Title}");
-    Console.WriteLine($"  Description: {(task.Description ?? "(none)")}");
-    Console.WriteLine($"  Status: {task.Status}");
-    Console.WriteLine($"  CreatedAt: {task.CreatedAt:o}");
-    Console.WriteLine($"  UpdatedAt: {task.UpdatedAt:o}");
+    tasks.Add(task);
+    SaveTasks(tasks);
+
+    Console.WriteLine($"Created task {task.Id}: {task.Title}");
 }
 
+List<TaskItem> LoadTasks()
+{
+    if (!File.Exists(filePath))
+    {
+        // No file yet → no tasks
+        return new List<TaskItem>();
+    }
+
+    try
+    {
+        string json = File.ReadAllText(filePath);
+
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            // Empty file → treat as no tasks
+            return new List<TaskItem>();
+        }
+
+        var tasks = JsonSerializer.Deserialize<List<TaskItem>>(json);
+        return tasks ?? new List<TaskItem>();
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Warning: Failed to read or parse '{filePath}': {ex.Message}");
+        Console.WriteLine("Starting with an empty task list.");
+        return new List<TaskItem>();
+    }
+}
+
+void SaveTasks(List<TaskItem> tasks)
+{
+    var options = new JsonSerializerOptions
+    {
+        WriteIndented = true
+    };
+
+    string json = JsonSerializer.Serialize(tasks, options);
+    File.WriteAllText(filePath, json);
+}
 class TaskItem
 {
     public int Id { get; set; }
