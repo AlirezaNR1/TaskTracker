@@ -3,8 +3,8 @@
     "Id": 1,
     "Title": "First Prj",
     "Description": "Complete the TaskTracker Project",
-    "Status": "todo",
+    "Status": "in-progress",
     "CreatedAt": "2025-11-18T06:37:17.5683918Z",
-    "UpdatedAt": "2025-11-18T06:37:17.5683918Z"
+    "UpdatedAt": "2025-11-18T11:57:09.9684561+03:30"
   }
 ]

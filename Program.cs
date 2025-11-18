@@ -24,11 +24,15 @@ switch (command)
     case "update":
     case "delete":
     case "mark-in-progress":
+        HandleMarkStatus(args, "in-progress");
+        break;
     case "mark-done":
+        HandleMarkStatus(args, "done");
+        break;  
     case "list":
         HandleList(args);
         break;
-
+    
     default:
         Console.WriteLine($"Unknown command '{command}'.");
         PrintUsage();
@@ -80,7 +84,7 @@ void HandleAdd(string[] args)
         nextId = tasks.Max(t => t.Id) + 1;
     }
 
-    var now = DateTime.UtcNow;
+    var now = DateTime.Now;
 
     var task = new TaskItem
     {
@@ -146,9 +150,41 @@ void HandleList(string[] args)
 
         if (!string.IsNullOrWhiteSpace(t.Description))
         {
-            Console.WriteLine($"    => {t.Description}");
+            Console.WriteLine($" => {t.Description}");
         }
     }
+}
+void HandleMarkStatus(string[] args, string newStatus)
+{
+    // args[0] = command name, args[1] should be id
+    if (args.Length < 2)
+    {
+        Console.WriteLine($"Error: '{args[0]}' requires an <id> argument.");
+        PrintUsage();
+        return;
+    }
+
+    if (!int.TryParse(args[1], out int id))
+    {
+        Console.WriteLine("Error: <id> must be a number.");
+        return;
+    }
+
+    var tasks = LoadTasks();
+
+    var task = tasks.FirstOrDefault(t => t.Id == id);
+    if (task == null)
+    {
+        Console.WriteLine($"Task with id {id} not found.");
+        return;
+    }
+
+    task.Status = newStatus;
+    task.UpdatedAt = DateTime.Now;
+
+    SaveTasks(tasks);
+
+    Console.WriteLine($"Task {task.Id} status updated to '{task.Status}'.");
 }
 
 List<TaskItem> LoadTasks()
