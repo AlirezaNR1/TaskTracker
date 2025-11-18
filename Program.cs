@@ -18,19 +18,23 @@ string command = args[0].ToLowerInvariant();
 
 switch (command)
 {
+    case "list":
+        HandleList(args);
+        break;
     case "add":
         HandleAdd(args);
         break;
-    case "update":
-    case "delete":
     case "mark-in-progress":
         HandleMarkStatus(args, "in-progress");
         break;
     case "mark-done":
         HandleMarkStatus(args, "done");
-        break;  
-    case "list":
-        HandleList(args);
+        break;
+    case "update":
+        HandleUpdate(args);
+        break;
+    case "delete":
+        HandleDelete(args); 
         break;
     
     default:
@@ -185,6 +189,80 @@ void HandleMarkStatus(string[] args, string newStatus)
     SaveTasks(tasks);
 
     Console.WriteLine($"Task {task.Id} status updated to '{task.Status}'.");
+}
+
+void HandleDelete(string[] args)
+{
+    // args[0] = "delete", args[1] should be id
+    if (args.Length < 2)
+    {
+        Console.WriteLine($"Error: '{args[0]}' requires an <id> argument.");
+        PrintUsage();
+        return;
+    }
+
+    if (!int.TryParse(args[1], out int id))
+    {
+        Console.WriteLine("Error: <id> must be a number.");
+        return;
+    }
+
+    var tasks = LoadTasks();
+
+    var task = tasks.FirstOrDefault(t => t.Id == id);
+    if (task == null)
+    {
+        Console.WriteLine($"Task with id {id} not found.");
+        return;
+    }
+
+    tasks.Remove(task);
+    SaveTasks(tasks);
+
+    Console.WriteLine($"Deleted task {id}.");
+}
+
+void HandleUpdate(string[] args)
+{
+    // args[0] = "update", args[1] = id, args[2] = new title, args[3] = optional new description
+    if (args.Length < 3)
+    {
+        Console.WriteLine($"Error: '{args[0]}' requires <id> and <new title>.");
+        PrintUsage();
+        return;
+    }
+
+    if (!int.TryParse(args[1], out int id))
+    {
+        Console.WriteLine("Error: <id> must be a number.");
+        return;
+    }
+
+    string newTitle = args[2];
+    string? newDescription = args.Length >= 4 ? args[3] : null;
+
+    var tasks = LoadTasks();
+
+    var task = tasks.FirstOrDefault(t => t.Id == id);
+    if (task == null)
+    {
+        Console.WriteLine($"Task with id {id} not found.");
+        return;
+    }
+
+    task.Title = newTitle;
+
+    // Only update description if user provided it
+    if (newDescription != null)
+    {
+        task.Description = newDescription;
+    }
+
+    task.UpdatedAt = DateTime.Now;
+
+    SaveTasks(tasks);
+
+    Console.WriteLine($"Updated task {task.Id}.");
 }
 
 List<TaskItem> LoadTasks()
