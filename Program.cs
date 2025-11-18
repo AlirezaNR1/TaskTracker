@@ -26,7 +26,7 @@ switch (command)
     case "mark-in-progress":
     case "mark-done":
     case "list":
-        Console.WriteLine($"Command '{command}' not implemented yet.");
+        HandleList(args);
         break;
 
     default:
@@ -96,6 +96,59 @@ void HandleAdd(string[] args)
     SaveTasks(tasks);
 
     Console.WriteLine($"Created task {task.Id}: {task.Title}");
+}
+void HandleList(string[] args)
+{
+    var tasks = LoadTasks();
+
+    string filter = "all";
+    if (args.Length >= 2)
+    {
+        filter = args[1].ToLowerInvariant();
+    }
+
+    IEnumerable<TaskItem>? filtered = filter switch
+    {
+        "all" => tasks,
+        "todo" => tasks.Where(t => t.Status == "todo"),
+        "in-progress" => tasks.Where(t => t.Status == "in-progress"),
+        "done" => tasks.Where(t => t.Status == "done"),
+        _ => null
+    };
+
+    if (filtered is null)
+    {
+        Console.WriteLine($"Unknown filter '{filter}'. Use: all | todo | in-progress | done");
+        PrintUsage();
+        return;
+    }
+
+    var list = filtered.OrderBy(t => t.Id).ToList();
+
+    if (list.Count == 0)
+    {
+        Console.WriteLine("No tasks found.");
+        return;
+    }
+
+    foreach (var t in list)
+    {
+        // Normalize how status is displayed (optional)
+        string statusLabel = t.Status switch
+        {
+            "todo" => "todo",
+            "in-progress" => "in-progress",
+            "done" => "done",
+            _ => t.Status
+        };
+
+        Console.WriteLine($"{t.Id} [{statusLabel}] {t.Title}");
+
+        if (!string.IsNullOrWhiteSpace(t.Description))
+        {
+            Console.WriteLine($"    => {t.Description}");
+        }
+    }
 }
 
 List<TaskItem> LoadTasks()
