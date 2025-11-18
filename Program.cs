@@ -1,10 +1,7 @@
-﻿using System;
-using System.IO;
-using System.Text.Json;
-using System.Collections.Generic;
-using System.Linq;
-
+﻿
 string filePath = Path.Combine(Environment.CurrentDirectory, "tasks.json");
+var repository = new TaskRepository(filePath);
+var service = new TaskService(repository);
 
 // No arguments → show usage and fail
 if (args.Length == 0)
@@ -80,38 +77,19 @@ void HandleAdd(string[] args)
         description = args[2];
     }
 
-    var tasks = LoadTasks();
-
-    int nextId;
-    if (tasks.Count == 0)
+    try
     {
-        nextId = 1;
+        var task = service.AddTask(title, description);
+        Console.WriteLine($"Created task {task.Id}: {task.Title}");
     }
-    else
+    catch (ArgumentException ex)
     {
-        nextId = tasks.Max(t => t.Id) + 1;
+        Console.WriteLine($"Error: {ex.Message}");
     }
-
-    var now = DateTime.Now;
-
-    var task = new TaskItem
-    {
-        Id = nextId,
-        Title = title,
-        Description = description,
-        Status = "todo",
-        CreatedAt = now,
-        UpdatedAt = now
-    };
-
-    tasks.Add(task);
-    SaveTasks(tasks);
-
-    Console.WriteLine($"Created task {task.Id}: {task.Title}");
 }
 void HandleList(string[] args)
 {
-    var tasks = LoadTasks();
+    var tasks = service.GetAllTasks();
 
     string filter = "all";
     if (args.Length >= 2)
@@ -178,21 +156,14 @@ void HandleMarkStatus(string[] args, string newStatus)
         return;
     }
 
-    var tasks = LoadTasks();
-
-    var task = tasks.FirstOrDefault(t => t.Id == id);
-    if (task == null)
+    bool ok = service.TryChangeStatus(id, newStatus);
+    if (!ok)
     {
         Console.WriteLine($"Task with id {id} not found.");
         return;
     }
 
-    task.Status = newStatus;
-    task.UpdatedAt = DateTime.Now;
-
-    SaveTasks(tasks);
-
-    Console.WriteLine($"Task {task.Id} status updated to '{task.Status}'.");
+    Console.WriteLine($"Task {id} status updated to '{newStatus}'.");
 }
 
 void HandleDelete(string[] args)
@@ -211,7 +182,7 @@ void HandleDelete(string[] args)
         return;
     }
 
-    var tasks = LoadTasks();
+    var tasks = repository.LoadAll();
 
     var task = tasks.FirstOrDefault(t => t.Id == id);
     if (task == null)
@@ -221,7 +192,14 @@ void HandleDelete(string[] args)
     }
 
     tasks.Remove(task);
-    SaveTasks(tasks);
+    repository.SaveAll(tasks);
+
+    Console.WriteLine($"Deleted task {id}."); bool ok = service.TryDeleteTask(id);
+    if (!ok)
+    {
+        Console.WriteLine($"Task with id {id} not found.");
+        return;
+    }
 
     Console.WriteLine($"Deleted task {id}.");
 }
@@ -245,28 +223,14 @@ void HandleUpdate(string[] args)
     string newTitle = args[2];
     string? newDescription = args.Length >= 4 ? args[3] : null;
 
-    var tasks = LoadTasks();
-
-    var task = tasks.FirstOrDefault(t => t.Id == id);
-    if (task == null)
+    bool ok = service.TryUpdateTask(id, newTitle, newDescription);
+    if (!ok)
     {
         Console.WriteLine($"Task with id {id} not found.");
         return;
     }
 
-    task.Title = newTitle;
-
-    // Only update description if user provided it
-    if (newDescription != null)
-    {
-        task.Description = newDescription;
-    }
-
-    task.UpdatedAt = DateTime.Now;
-
-    SaveTasks(tasks);
-
-    Console.WriteLine($"Updated task {task.Id}.");
+    Console.WriteLine($"Updated task {id}.");
 }
 void HandleSearch(string[] args)
 {
@@ -285,17 +249,7 @@ void HandleSearch(string[] args)
         return;
     }
 
-    var tasks = LoadTasks();
-
-    // case-insensitive search in Title or Description
-    string q = query.Trim();
-    var matches = tasks
-        .Where(t =>
-            (t.Title?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false) ||
-            (t.Description?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)
-        )
-        .OrderBy(t => t.Id)
-        .ToList();
+    var matches = service.SearchTasks(query);
 
     if (matches.Count == 0)
     {
@@ -308,55 +262,9 @@ void HandleSearch(string[] args)
         Console.WriteLine($"{t.Id} [{t.Status}] {t.Title}");
         if (!string.IsNullOrWhiteSpace(t.Description))
         {
-            Console.WriteLine($" => {t.Description}");
+            Console.WriteLine($"    {t.Description}");
         }
     }
 }
-List<TaskItem> LoadTasks()
-{
-    if (!File.Exists(filePath))
-    {
-        // No file yet → no tasks
-        return new List<TaskItem>();
-    }
 
-    try
-    {
-        string json = File.ReadAllText(filePath);
 
-        if (string.IsNullOrWhiteSpace(json))
-        {
-            // Empty file → treat as no tasks
-            return new List<TaskItem>();
-        }
-
-        var tasks = JsonSerializer.Deserialize<List<TaskItem>>(json);
-        return tasks ?? new List<TaskItem>();
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"Warning: Failed to read or parse '{filePath}': {ex.Message}");
-        Console.WriteLine("Starting with an empty task list.");
-        return new List<TaskItem>();
-    }
-}
-
-void SaveTasks(List<TaskItem> tasks)
-{
-    var options = new JsonSerializerOptions
-    {
-        WriteIndented = true
-    };
-
-    string json = JsonSerializer.Serialize(tasks, options);
-    File.WriteAllText(filePath, json);
-}
-class TaskItem
-{
-    public int Id { get; set; }
-    public string Title { get; set; } = "";
-    public string? Description { get; set; }
-    public string Status { get; set; } = "todo"; // "todo" | "in-progress" | "done"
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
-}
