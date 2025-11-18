@@ -36,12 +36,15 @@ switch (command)
     case "delete":
         HandleDelete(args); 
         break;
-    
+    case "search":
+        HandleSearch(args); 
+        break;
     default:
         Console.WriteLine($"Unknown command '{command}'.");
         PrintUsage();
         return 1;
 }
+
 
 return 0;
 
@@ -54,6 +57,7 @@ void PrintUsage()
     Console.WriteLine("  tasktracker mark-in-progress <id>");
     Console.WriteLine("  tasktracker mark-done <id>");
     Console.WriteLine("  tasktracker list [all|todo|in-progress|done]");
+    Console.WriteLine("  tasktracker search <text>");
 }
 
 void HandleAdd(string[] args)
@@ -264,7 +268,50 @@ void HandleUpdate(string[] args)
 
     Console.WriteLine($"Updated task {task.Id}.");
 }
+void HandleSearch(string[] args)
+{
+ // args[0] = "search", args[1] should be search text
+    if (args.Length < 2)
+    {
+        Console.WriteLine("Error: 'search' requires a <text> argument.");
+        PrintUsage();
+        return;
+    }
 
+    string query = args[1];
+    if (string.IsNullOrWhiteSpace(query))
+    {
+        Console.WriteLine("Error: search text cannot be empty.");
+        return;
+    }
+
+    var tasks = LoadTasks();
+
+    // case-insensitive search in Title or Description
+    string q = query.Trim();
+    var matches = tasks
+        .Where(t =>
+            (t.Title?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (t.Description?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)
+        )
+        .OrderBy(t => t.Id)
+        .ToList();
+
+    if (matches.Count == 0)
+    {
+        Console.WriteLine("No matching tasks found.");
+        return;
+    }
+
+    foreach (var t in matches)
+    {
+        Console.WriteLine($"{t.Id} [{t.Status}] {t.Title}");
+        if (!string.IsNullOrWhiteSpace(t.Description))
+        {
+            Console.WriteLine($" => {t.Description}");
+        }
+    }
+}
 List<TaskItem> LoadTasks()
 {
     if (!File.Exists(filePath))
